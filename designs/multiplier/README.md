@@ -1,4 +1,4 @@
-# @PACKAGE_NAME@
+# multiplier
 
 [English](README.en.md)
 
@@ -9,17 +9,17 @@
 
 | 文件 | 用途 | 是否需要修改 |
 | --- | --- | --- |
-| `rtl/@MODULE@.sv` | 你的电路代码 | 是，替换示例逻辑 |
-| `tests/@MODULE@Tb.sv` | 只测试你的电路 | 是，检查你的实际功能 |
-| `tests/Frame@MODULE@Tb.sv` | 测试电路接入整个工程后是否正常 | 是，检查外部引脚和 design 选择 |
+| `rtl/Multiplier.sv` | 你的电路代码 | 是，替换示例逻辑 |
+| `tests/MultiplierTb.sv` | 只测试你的电路 | 是，检查你的实际功能 |
+| `tests/FrameMultiplierTb.sv` | 测试电路接入整个工程后是否正常 | 是，检查外部引脚和 design 选择 |
 | `design.json` | 告诉构建工具源码和测试在哪里 | 通常不需要 |
 
-设计名称是 `@PACKAGE_NAME@`，顶层模块名是 `@MODULE@`。用户设计不需要填写
+设计名称是 `multiplier`，顶层模块名是 `Multiplier`。用户设计不需要填写
 design ID；Frame 测试会自动使用临时 ID，正式 ID 由维护者合并时分配。
 
 ## 第一步：实现电路
 
-打开 `rtl/@MODULE@.sv`，替换其中的示例逻辑。模块最外层的五个端口是工程与
+打开 `rtl/Multiplier.sv`，替换其中的示例逻辑。模块最外层的五个端口是工程与
 你的电路之间的固定连接，初次使用时不要改名或删除：
 
 - `clock`：时钟；纯组合电路可以不用，但必须保留端口。
@@ -35,7 +35,7 @@ design ID；Frame 测试会自动使用临时 ID，正式 ID 由维护者合并�
 
 两个 TB 文件开头都标明了哪些部分通常保留、哪些部分应按设计修改。
 
-先修改 `tests/@MODULE@Tb.sv`，测试你的电路功能。然后运行：
+先修改 `tests/MultiplierTb.sv`，测试你的电路功能。然后运行：
 
 ```sh
 make user-lint

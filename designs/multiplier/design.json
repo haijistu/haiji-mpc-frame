@@ -1,8 +1,8 @@
 {
-  "name": "@PACKAGE_NAME@",
-  "module": "@MODULE@",
+  "name": "multiplier",
+  "module": "Multiplier",
   "sources": [
-    "rtl/@MODULE@.sv"
+    "rtl/Multiplier.sv"
   ],
   "include_dirs": [],
   "defines": {},
@@ -13,17 +13,17 @@
     {
       "name": "io",
       "kind": "unit",
-      "top": "@UNIT_TOP@",
+      "top": "MultiplierTb",
       "sources": [
-        "tests/@MODULE@Tb.sv"
+        "tests/MultiplierTb.sv"
       ]
     },
     {
       "name": "frame",
       "kind": "frame",
-      "top": "@FRAME_TOP@",
+      "top": "FrameMultiplierTb",
       "sources": [
-        "tests/Frame@MODULE@Tb.sv"
+        "tests/FrameMultiplierTb.sv"
       ]
     }
   ]

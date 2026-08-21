@@ -1,0 +1,35 @@
+# Repository whitelist: ignore every root entry unless explicitly admitted.
+/*
+
+!/.gitignore
+!/.github/
+!/LICENSE
+!/Makefile
+!/Makefile.dev
+!/README.md
+!/README.en.md
+!/FrameTop.sv
+!/dev/
+!/docs/
+!/designs/
+!/mk/
+!/rtl/
+!/scripts/
+!/spec/
+
+# QA notes are local discussion records and are not repository deliverables.
+/docs/*-qa.md
+/docs/qa/
+
+# Generated artifacts inside admitted source trees.
+**/__pycache__/
+**/*.pyc
+**/*.o
+**/*.log
+**/*.vcd
+**/*.fst
+**/*.fsdb
+**/obj_dir/
+/dev/site/node_modules/
+/dev/site/.vitepress/cache/
+/dev/site/.vitepress/dist/

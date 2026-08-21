@@ -1,4 +1,4 @@
-# @PACKAGE_NAME@
+# multiplier
 
 [中文说明](README.md)
 
@@ -9,18 +9,18 @@ two test files. You do not need to change `FrameTop.sv` or the root RTL files.
 
 | File | Purpose | Edit it? |
 | --- | --- | --- |
-| `rtl/@MODULE@.sv` | Your circuit | Yes; replace the example logic |
-| `tests/@MODULE@Tb.sv` | Tests only your circuit | Yes; check your real behavior |
-| `tests/Frame@MODULE@Tb.sv` | Tests your circuit through the full frame | Yes; check pins and design selection |
+| `rtl/Multiplier.sv` | Your circuit | Yes; replace the example logic |
+| `tests/MultiplierTb.sv` | Tests only your circuit | Yes; check your real behavior |
+| `tests/FrameMultiplierTb.sv` | Tests your circuit through the full frame | Yes; check pins and design selection |
 | `design.json` | Tells the build tools where sources and tests are | Usually no |
 
-The design name is `@PACKAGE_NAME@`, and the top module is `@MODULE@`. Users do
+The design name is `multiplier`, and the top module is `Multiplier`. Users do
 not assign a design ID. Frame tests use an automatic temporary ID, and a
 maintainer assigns the permanent ID during integration.
 
 ## Step 1: Implement the circuit
 
-Open `rtl/@MODULE@.sv` and replace the example logic. Keep the five top-level
+Open `rtl/Multiplier.sv` and replace the example logic. Keep the five top-level
 ports. They are the fixed connection between your circuit and the frame:
 
 - `clock`: clock input. A combinational circuit may ignore it, but keep it.
@@ -37,7 +37,7 @@ maps to `user_io[7]`.
 Both TB files mark the sections that are normally kept and the sections that
 you should edit for your design.
 
-First update `tests/@MODULE@Tb.sv`, then run:
+First update `tests/MultiplierTb.sv`, then run:
 
 ```sh
 make user-lint
