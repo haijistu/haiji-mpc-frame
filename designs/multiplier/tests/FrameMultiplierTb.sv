@@ -21,8 +21,8 @@ module FrameMultiplierTb;
   localparam time HALF_PERIOD = 5ns;
 
   // 按设计修改 / Edit for your design:
-  // 与单元测试一致：流水线 R1..R5 共 5 级。
-  localparam int LATENCY = 5;
+  // 与单元测试一致：流水线 R1..R4 共 4 级（3-2 与 CPA 合并在末级）。
+  localparam int LATENCY = 4;
 
   // test_io_out 是测试环境准备驱动的值；test_io_oe 对应位为 1 时才真正驱动。
   // test_io_out holds values from the test; test_io_oe enables each driven pin.
@@ -34,10 +34,98 @@ module FrameMultiplierTb;
   tri [IO_WIDTH-1:0] user_io;
 
   // 按设计修改 / Edit for your design:
-  // 测试向量与参考结果变量。
-  logic [15:0] a_vec [0:3];
-  logic [15:0] b_vec [0:3];
+  // 有符号 16 位乘法：参考模型 sa*sb（16x16 -> 32 位补码结果，不会溢出 32 位）。
+
+  // ---- A 组：定向边界用例（元素编码为 {b[15:0], a[15:0]}）----
+  localparam int DIR_N = 22;
+  localparam logic [31:0] DIR_CASES [DIR_N] = '{
+    32'h0003_0005,  // a=+5      b=+3     -> +15
+    32'h0003_FFFB,  // a=-5      b=+3     -> -15
+    32'hFFFD_0005,  // a=+5      b=-3     -> -15
+    32'hFFFD_FFFB,  // a=-5      b=-3     -> +15
+    32'h0000_0000,  // a=0       b=0      -> 0
+    32'h3039_0000,  // a=0       b=12345  -> 0
+    32'h0000_7FFF,  // a=32767   b=0      -> 0
+    32'h0001_0001,  // a=1       b=1      -> 1
+    32'h7FFF_0001,  // a=1       b=32767  -> 32767（最大正数）
+    32'h8000_FFFF,  // a=-32768  b=-1     -> 32768（-1 翻转最小负）
+    32'hFFFF_7FFF,  // a=32767   b=-1     -> -32767
+    32'h7FFF_7FFF,  // a=32767   b=32767  -> 1073676289（最大正积）
+    32'h8000_7FFF,  // a=32767   b=-32768 -> -1073709056（最负积）
+    32'h7FFF_8000,  // a=-32768  b=32767  -> -1073709056
+    32'h8000_8000,  // a=-32768  b=-32768 -> 2^30 = 1073741824（最大积）
+    32'h4000_4000,  // a=16384   b=16384  -> 2^28
+    32'hC000_4000,  // a=16384   b=-16384 -> -2^28
+    32'h4000_C000,  // a=-16384  b=16384  -> -2^28
+    32'h0002_7FFF,  // a=32767   b=2      -> 65534（触发 +2x 高位保护）
+    32'hFFFE_7FFF,  // a=32767   b=-2     -> -65534（触发 -2x 取反）
+    32'h0002_8000,  // a=-32768  b=2      -> -65536
+    32'hFFFE_8000   // a=-32768  b=-2     -> 65536（负倍数取反+1 的极端）
+  };
+
+  // ---- B 组：交叉乘积的边界常数 ----
+  localparam int BND_N = 14;
+  localparam logic [15:0] BND [BND_N] = '{
+    16'h0000,  // 0
+    16'h0001,  // 1
+    16'hFFFF,  // -1
+    16'h0002,  // 2
+    16'hFFFE,  // -2
+    16'h4000,  // 16384 (2^14)
+    16'hC000,  // -16384
+    16'h7FFF,  // 32767（最大正）
+    16'h8001,  // -32767
+    16'h8000,  // -32768（最小负）
+    16'h7FFE,  // 32766
+    16'h2000,  // 8192 (2^13)
+    16'h5555,  // 21845（01 交替位型）
+    16'hAAAA   // -21846（10 交替位型）
+  };
+
+  // ---- 可复现伪随机源：Xorshift32 ----
+  logic [31:0] rng = 32'h89AB_CDEF;
+  function automatic logic [31:0] next_rand(input logic [31:0] x);
+    logic [31:0] y;
+    y = x ^ (x << 13);
+    y = y ^ (y >> 17);
+    y = y ^ (y << 5);
+    return y;
+  endfunction
+
+  // ---- 运行与检查 ----
+  logic [15:0] a_i, b_i;
   logic signed [31:0] sa, sb, expected;
+  int unsigned pass_count = 0;
+
+  // 送入一组输入（经 user_io 通路），等待 LATENCY 拍后校验输出。
+  task automatic run_case(input int tag,
+                          input logic [15:0] a, input logic [15:0] b,
+                          input bit verbose);
+    begin
+      sa       = {{16{a[15]}}, a};
+      sb       = {{16{b[15]}}, b};
+      expected = sa * sb;
+
+      @(negedge clock);
+      test_io_out[DESIGN_ID_WIDTH+15 : DESIGN_ID_WIDTH+0]  = a;
+      test_io_out[DESIGN_ID_WIDTH+31 : DESIGN_ID_WIDTH+16] = b;
+      test_io_out[DESIGN_ID_WIDTH+64] = 1'b1;
+
+      repeat (LATENCY) @(posedge clock);
+      #1ns;
+
+      if (user_io[DESIGN_ID_WIDTH+65] !== 1'b1)
+        $fatal(1, "tag %0d: a=%0d b=%0d: valid_o did not assert at user_io[72]",
+               tag, sa, sb);
+      if ($signed(user_io[DESIGN_ID_WIDTH+63 : DESIGN_ID_WIDTH+32]) !== expected)
+        $fatal(1, "tag %0d: a=%0d b=%0d: got %0d, expected %0d",
+               tag, sa, sb,
+               $signed(user_io[DESIGN_ID_WIDTH+63 : DESIGN_ID_WIDTH+32]), expected);
+      pass_count++;
+      if (verbose)
+        $display("tag %0d: %0d * %0d = %0d  OK", tag, sa, sb, expected);
+    end
+  endtask
 
   always #(HALF_PERIOD) clock = ~clock;
 
@@ -78,34 +166,31 @@ module FrameMultiplierTb;
     test_io_oe[DESIGN_ID_WIDTH+31 : DESIGN_ID_WIDTH+16] = '1;  // b
     test_io_oe[DESIGN_ID_WIDTH+64] = 1'b1;                     // valid_i
 
-    // 测试向量
-    a_vec[0] = 16'hFFFD;   b_vec[0] = 16'h0005;   // -15
-    a_vec[1] = 16'h7FFF;   b_vec[1] = 16'h7FFF;   // 1073676289
-    a_vec[2] = 16'h8000;   b_vec[2] = 16'h8000;   // 1073741824
-    a_vec[3] = 16'h8000;   b_vec[3] = 16'h7FFF;   // -1073709056
+    // 逐组运行：
+    //  A 组：定向边界（逐个打印）
+    for (int i = 0; i < DIR_N; i++)
+      run_case(i, DIR_CASES[i][15:0], DIR_CASES[i][31:16], 1'b1);
+    $display("A: %0d/%0d directed boundary cases passed", pass_count, DIR_N);
 
-    for (int i = 0; i < 4; i++) begin
-      @(negedge clock);
-      test_io_out[DESIGN_ID_WIDTH+15 : DESIGN_ID_WIDTH+0]  = a_vec[i];
-      test_io_out[DESIGN_ID_WIDTH+31 : DESIGN_ID_WIDTH+16] = b_vec[i];
-      test_io_out[DESIGN_ID_WIDTH+64] = 1'b1;
+    //  B 组：边界常数两两全乘（14 x 14 = 196）
+    for (int i = 0; i < BND_N; i++)
+      for (int j = 0; j < BND_N; j++)
+        run_case(1000 + i * BND_N + j, BND[i], BND[j], 1'b0);
+    $display("B: %0d/%0d boundary cross cases passed",
+             pass_count, DIR_N + BND_N * BND_N);
 
-      repeat (LATENCY) @(posedge clock);
-      #1ns;
-
-      sa       = {{16{a_vec[i][15]}}, a_vec[i]};
-      sb       = {{16{b_vec[i][15]}}, b_vec[i]};
-      expected = sa * sb;
-
-      if (user_io[DESIGN_ID_WIDTH+65] !== 1'b1)
-        $fatal(1, "case %0d: valid_o did not assert at user_io[72]", i);
-      if ($signed(user_io[DESIGN_ID_WIDTH+63 : DESIGN_ID_WIDTH+32]) !== expected)
-        $fatal(1, "case %0d: got %0d, expected %0d",
-               i, $signed(user_io[DESIGN_ID_WIDTH+63 : DESIGN_ID_WIDTH+32]), expected);
-      $display("case %0d: %0d * %0d = %0d  OK", i, sa, sb, expected);
+    //  C 组：固定种子伪随机（Xorshift32，可复现）
+    for (int i = 0; i < 512; i++) begin
+      rng = next_rand(rng);
+      a_i = rng[31:16];
+      rng = next_rand(rng);
+      b_i = rng[15:0];
+      run_case(2000 + i, a_i, b_i, 1'b0);
     end
+    $display("C: %0d/%0d random cases passed",
+             pass_count - (DIR_N + BND_N * BND_N), 512);
 
-    $display("MULTIPLIER FRAME TEST PASS");
+    $display("MULTIPLIER FRAME TEST PASS (%0d total cases)", pass_count);
     $finish;
   end
 
